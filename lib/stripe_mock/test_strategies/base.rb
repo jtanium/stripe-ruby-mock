@@ -134,6 +134,11 @@ module StripeMock
         when "setup"
           Stripe::SetupIntent.update(session.setup_intent, {payment_method: payment_method.id})
         when "subscription"
+          if session.subscription != nil
+            # If the session already has a subscription, we just update it with the new payment method
+            Stripe::Subscription.update(session.subscription, {default_payment_method: payment_method.id})
+            return session.subscription
+          end
           line_items = Stripe::Checkout::Session.list_line_items(session.id)
           Stripe::Subscription.create({
             customer: session.customer,

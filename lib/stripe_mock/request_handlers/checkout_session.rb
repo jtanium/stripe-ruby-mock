@@ -27,18 +27,18 @@ module StripeMock
               {
                 id: new_id("li"),
                 price: if line_item[:price]
-                  line_item[:price]
-                elsif line_item[:price_data]
-                  new_price(nil, nil, line_item[:price_data], nil)[:id]
-                else
-                  new_price(nil, nil, {
-                    unit_amount: line_item[:amount],
-                    currency: line_item[:currency],
-                    product_data: {
-                      name: line_item[:name]
-                    }
-                  }, nil)[:id]
-                end,
+                         line_item[:price]
+                       elsif line_item[:price_data]
+                         new_price(nil, nil, line_item[:price_data], nil)[:id]
+                       else
+                         new_price(nil, nil, {
+                           unit_amount: line_item[:amount],
+                           currency: line_item[:currency],
+                           product_data: {
+                             name: line_item[:name]
+                           }
+                         }, nil)[:id]
+                       end,
                 quantity: line_item[:quantity]
               }
             end
@@ -65,9 +65,10 @@ module StripeMock
           payment_status = "unpaid"
           payment_intent = nil
           setup_intent = nil
+          subscription = nil
           case params[:mode]
           when nil, "payment"
-            params[:customer] ||= new_customer(nil, nil, {email: params[:customer_email]}, nil)[:id]
+            params[:customer] ||= new_customer(nil, nil, { email: params[:customer_email] }, nil)[:id]
             require_param(:line_items) if params[:line_items].nil? || params[:line_items].empty?
             payment_intent = new_payment_intent(nil, nil, {
               amount: amount,
@@ -88,7 +89,12 @@ module StripeMock
             }.merge(params[:setup_intent_data] || {}), nil)[:id]
             payment_status = "no_payment_required"
           when "subscription"
-            params[:customer] ||= new_customer(nil, nil, {email: params[:customer_email]}, nil)[:id]
+            params[:customer] ||= new_customer(nil, nil, { email: params[:customer_email], source: params[:customer_source] }, nil)[:id]
+            params[:subscription] = create_subscription(nil, nil,
+                                                        { customer: params[:customer], plan: params[:plan] },
+                                                        { idempotency_key: "test_idempotency_key" }
+            )[:id]
+            subscription = params[:subscription]
             require_param(:line_items) if params[:line_items].nil? || params[:line_items].empty?
             checkout_session_line_items[id] = line_items
           else
@@ -124,7 +130,7 @@ module StripeMock
             shipping: nil,
             shipping_address_collection: nil,
             submit_type: nil,
-            subscription: nil,
+            subscription: subscription,
             success_url: params[:success_url],
             total_details: nil,
             url: URI.join(StripeMock.checkout_base, id).to_s
@@ -142,6 +148,9 @@ module StripeMock
           checkout_session = checkout_session.clone
           if params[:expand]&.include?('setup_intent') && checkout_session[:setup_intent]
             checkout_session[:setup_intent] = setup_intents[checkout_session[:setup_intent]]
+          end
+          if params[:expand]&.include?('subscription') && checkout_session[:subscription]
+            checkout_session[:subscription] = subscriptions[checkout_session[:subscription]]
           end
           checkout_session
         end

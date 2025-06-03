@@ -3,11 +3,11 @@ require "spec_helper"
 shared_examples "Checkout Session API" do
   it "creates PaymentIntent with payment mode" do
     line_items = [{
-      name: "T-shirt",
-      quantity: 2,
-      amount: 500,
-      currency: "usd",
-    }]
+                    name: "T-shirt",
+                    quantity: 2,
+                    amount: 500,
+                    currency: "usd",
+                  }]
     session = Stripe::Checkout::Session.create(
       payment_method_types: ["card"],
       line_items: line_items,
@@ -62,6 +62,7 @@ shared_examples "Checkout Session API" do
 
   context "retrieve a checkout session" do
     let(:checkout_session1) { stripe_helper.create_checkout_session }
+    let(:test_helper) { StripeMock.create_test_helper }
 
     it "can be retrieved by id" do
       checkout_session1
@@ -89,6 +90,24 @@ shared_examples "Checkout Session API" do
       checkout_session = Stripe::Checkout::Session.retrieve(id: initial_session.id, expand: ["setup_intent"])
 
       expect(checkout_session.setup_intent).to be_a_kind_of(Stripe::SetupIntent)
+    end
+
+    it "can expand subscription" do
+      initial_session = test_helper.create_checkout_session(
+        mode: "subscription",
+        customer_email: "jonny@appleseed.com",
+        customer_source: stripe_helper.generate_card_token,
+        plan: stripe_helper.create_plan(product: stripe_helper.create_product.id).id,
+      )
+      payment_method = Stripe::PaymentMethod.create(type: "card")
+      initial_subscription = test_helper.complete_checkout_session(initial_session, payment_method)
+
+      checkout_session = Stripe::Checkout::Session.retrieve(id: initial_session.id, expand: ["subscription"])
+
+      expect(checkout_session.subscription).to be_a_kind_of(Stripe::Subscription)
+      subscription = checkout_session.subscription
+      expect(subscription.id).to eq(initial_subscription)
+      expect(subscription.customer).to eq(initial_session.customer)
     end
   end
 end
